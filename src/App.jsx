@@ -4,6 +4,7 @@ import Search from "./components/Search.jsx";
 import Spinner from "./components/Spinner.jsx";
 import MovieCard from "./components/MovieCard.jsx";
 import search from "./components/Search.jsx";
+import {getTrendingMovies, UpdateSearchCount} from "./appwrite.js";
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -23,6 +24,7 @@ const App = () => {
     const [movieList, setMovieList] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+    const [trendingMovies, setTrendingMovies] = useState([]);
 
     useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm])
 
@@ -33,7 +35,7 @@ const App = () => {
             //const endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
             //const endpoint = `${API_BASE_URL}/discover/tv?sort_by=popularity.desc&with_original_language=ko&with_genres=18&api_key=${API_KEY}`;
             const endpoint = query
-                ? `${API_BASE_URL}/search/tv?query=${encodeURIComponent(query)}&api_key=${API_KEY}`
+                ? `${API_BASE_URL}/search/tv?query=${encodeURIComponent(query)}`
                 : `${API_BASE_URL}/discover/tv?sort_by=popularity.desc&with_original_language=ko&with_genres=18&first_air_date.gte=2020-01-01&api_key=${API_KEY}`;
 
             const response = await fetch(endpoint, API_OPTIONS);
@@ -52,6 +54,9 @@ const App = () => {
                 // 🔹 Filter only Korean dramas
                 const filteredResults = data.results.filter(movie => movie.original_language === 'ko');
                 setMovieList(filteredResults);
+                if(query && data.results.length > 0){
+                    await UpdateSearchCount(query, data.results[0]);
+                }
             } else {
                 setMovieList([]);
                 setErrorMessage('No results found.');
@@ -65,9 +70,24 @@ const App = () => {
         }
     }
 
+    const loadTrendingMovies = async () => {
+        try{
+            const movies = await getTrendingMovies();
+            setTrendingMovies(movies);
+        }
+        catch(error){
+            console.log(`Error fetching trending movies: ${error}`);
+        }
+    }
+
     useEffect(() => {
             fetchMovies(debouncedSearchTerm);
     }, [debouncedSearchTerm]);
+
+    useEffect(() => {
+        loadTrendingMovies()
+    }, [])
+
     return (
         <main>
             <div className="pattern"/>
@@ -80,8 +100,23 @@ const App = () => {
                     <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
                 </header>
 
+                {trendingMovies.length > 0 && (
+                    <section className="trending">
+                        <h2>Trending KDramas</h2>
+
+                        <ul>
+                            {trendingMovies.map((movie, index) => (
+                                <li key={movie.$id}>
+                                    <p>{index + 1}</p>
+                                    <img src={movie.poster_url} alt={movie.name}/>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
                <section className="all-movies">
-                   <h2 className="mt-[40px]">All KDramas</h2>
+                   <h2>All KDramas</h2>
 
                    {isLoading ? (
                        <Spinner/>
